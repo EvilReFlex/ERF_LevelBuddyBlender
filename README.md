@@ -12,18 +12,14 @@
 - Sectors can have up to 3 materials: floor + wall + ceiling
 - Support for Auto and Manual UV
 
-## Notes
-- It crashes often, make sure to save work at all times
-- TextureBuddy no longer exists (got merged to main code)
-- Addon still has some bugs
-- Yes I removed some old features
-- But I also added some better features that suits fast level design
+## Features - ERF Version 
+- Added panel to set a vertex color attribute to a sector 
 
 ## Installing
 - Download repo and unzip
-- Blender -> Edit -> Preferences -> Addons -> Install -> Select LevelBuddy.py
+- Blender -> Edit -> Preferences -> Addons -> Install -> Select ERF_LevelBuddy.py
 - Enable the addon
-- Make sure you delete/remove old versions
+- Make sure you delete/remove old versions (LevelBuddy.py)
 
 ## License
 This program is free software: you can redistribute it and/or modify
