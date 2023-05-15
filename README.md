@@ -1,10 +1,12 @@
-# Level Buddy for Blender 3.0
+# Level Buddy for Blender 3.0+
 
-**Level Buddy** is a Blender add-on originally written by Matt Lucas.
+**Level Buddy** is a Blender add-on originally written by Matt Lucas ported hickVieira to Blender 3.0 and edited by EvilReFlex
 
 [old version available on itch.io](https://matt-lucas.itch.io/level-buddy).
 
-![gify](gif.gif)
+
+https://github.com/EvilReFlex/ERF_LevelBuddyBlender/assets/25352496/236972b3-7c9e-48de-93bd-6b0a4cd3ee1b
+
 
 ## Features
 - Doom-inspired sector-based level editor
