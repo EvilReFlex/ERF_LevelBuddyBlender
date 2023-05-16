@@ -4,12 +4,10 @@
 
 [old version available on itch.io](https://matt-lucas.itch.io/level-buddy).
 
-
-https://github.com/EvilReFlex/ERF_LevelBuddyBlender/assets/25352496/236972b3-7c9e-48de-93bd-6b0a4cd3ee1b
-
 Discord EvilReFlex:
 https://discord.gg/XCBNuKaz9P
 
+https://github.com/EvilReFlex/ERF_LevelBuddyBlender/assets/25352496/236972b3-7c9e-48de-93bd-6b0a4cd3ee1b
 
 ![Image](https://github.com/EvilReFlex/ERF_LevelBuddyBlender/assets/25352496/696237a5-a57d-4e61-a8b7-bc0f76a0de34)
 
