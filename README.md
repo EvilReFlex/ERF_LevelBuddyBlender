@@ -1,4 +1,4 @@
-# Level Buddy for Blender 3.0+
+# Level Buddy for Blender
 
 **Level Buddy** is a Blender add-on originally written by Matt Lucas ported hickVieira to Blender 3.0 and reworked for Blender 4.0+ by EvilReFlex
 
