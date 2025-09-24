@@ -23,19 +23,21 @@ import bmesh
 bl_info = {
     "name": "ERF Level Buddy",
     "author": "Matt Lucas, HickVieira, EvilReFlex",
-    "version": (2, 0),
+    "version": (2, 2),
     "blender": (4, 0, 0),
     "location": "View3D > Tools > Level Buddy",
     "description": "Workflow tools inspired by Doom and Unreal level mapping.",
     "warning": "",
-    "wiki_url": "https://github.com/EvilReFlex/ERF_LevelBuddyBlender",
+    "wiki_url": "https://github.com/hickVieira/LevelBuddyBlender3",
     "category": "Object",
 }
 
 IS_4X = bpy.app.version >= (4, 0, 0)
 PREFERRED_COLOR_ATTR_NAME = "Attribute"
 
-# ------------------------- helpers -------------------------
+# =========================
+# helpers
+# =========================
 
 def translate(val, t):
     return val + t
@@ -140,7 +142,9 @@ def fill_color_layer_object_mode(obj, rgba):
         except Exception:
             pass
 
-# ---------------------- core functionality ----------------------
+# =========================
+# core functionality
+# =========================
 
 def auto_texture(bool_obj, source_obj):
     mesh = bool_obj.data
@@ -149,8 +153,8 @@ def auto_texture(bool_obj, source_obj):
 
     bm = bmesh.new()
     bm.from_mesh(mesh)
-
     uv_layer = bm.loops.layers.uv.verify()
+
     for f in bm.faces:
         nX = abs(f.normal.x)
         nY = abs(f.normal.y)
@@ -169,6 +173,7 @@ def auto_texture(bool_obj, source_obj):
             faceDirection = "-y"
         if faceDirection == "z" and f.normal.z < 0:
             faceDirection = "-z"
+
         for l in f.loops:
             luv = l[uv_layer]
             if faceDirection in ("x", "-x"):
@@ -237,7 +242,7 @@ def update_brush_sector_modifier(ob):
             mod.material_offset_rim = 2
             break
 
-def update_brush_sector_materials(ob):
+def update_sector_materials(ob):
     while len(ob.material_slots) < 3:
         bpy.ops.object.material_slot_add()
     while len(ob.material_slots) > 3:
@@ -249,13 +254,26 @@ def update_brush_sector_materials(ob):
     if bpy.data.materials.find(ob.wall_texture) != -1:
         ob.material_slots[2].material = bpy.data.materials[ob.wall_texture]
 
+def update_brush_material(ob):
+    while len(ob.material_slots) < 1:
+        bpy.ops.object.material_slot_add()
+    while len(ob.material_slots) > 1:
+        bpy.ops.object.material_slot_remove()
+    mat_name = getattr(ob, "brush_material", "") or ""
+    if mat_name and bpy.data.materials.find(mat_name) != -1:
+        ob.material_slots[0].material = bpy.data.materials[mat_name]
+    else:
+        ob.material_slots[0].material = None
+
 def update_brush(obj):
     bpy.context.view_layer.objects.active = obj
     if obj:
         obj.display_type = 'WIRE'
         update_brush_sector_modifier(obj)
         if obj.brush_type == 'SECTOR':
-            update_brush_sector_materials(obj)
+            update_sector_materials(obj)
+        elif obj.brush_type == 'BRUSH':
+            update_brush_material(obj)
         update_location_precision(obj)
 
 def cleanup_vertex_precision(ob):
@@ -265,7 +283,6 @@ def cleanup_vertex_precision(ob):
         v.co.z = round(v.co.z, bpy.context.scene.map_precision)
 
 def apply_csg(target, source_obj, bool_obj, reporter=None):
-    # Sicherstellen: Ziel/Bool haben Color-Attribute (für Propagation)
     if target.data:
         ensure_color_layer(target.data)
     if bool_obj.data:
@@ -273,7 +290,6 @@ def apply_csg(target, source_obj, bool_obj, reporter=None):
 
     bpy.ops.object.select_all(action='DESELECT')
     target.select_set(True)
-
     copy_materials(target, source_obj)
 
     mod = target.modifiers.new(name=source_obj.name, type='BOOLEAN')
@@ -339,7 +355,6 @@ def copy_transforms(a, b):
     a.rotation_euler = b.rotation_euler
 
 def set_normals_inward(ob):
-    """Orientiere Normalen konsistent nach innen."""
     try:
         bpy.ops.object.select_all(action='DESELECT')
         ob.select_set(True)
@@ -377,7 +392,9 @@ def remove_material(obj):
         bpy.ops.object.editmode_toggle()
         bpy.ops.object.material_slot_remove()
 
-# ---------------------- properties ----------------------
+# =========================
+# properties
+# =========================
 
 bpy.types.Scene.map_precision = bpy.props.IntProperty(
     name="Map Precision",
@@ -410,7 +427,6 @@ bpy.types.Scene.color_attribute_name = bpy.props.StringProperty(
     default=PREFERRED_COLOR_ATTR_NAME
 )
 
-# Brush props
 bpy.types.Object.ceiling_texture_scale_offset = bpy.props.FloatVectorProperty(
     name="Ceiling Texture Scale Offset",
     default=(1, 1, 0, 0),
@@ -473,6 +489,7 @@ bpy.types.Object.floor_height = bpy.props.FloatProperty(
 bpy.types.Object.floor_texture = bpy.props.StringProperty(name="Floor Texture")
 bpy.types.Object.wall_texture = bpy.props.StringProperty(name="Wall Texture")
 bpy.types.Object.ceiling_texture = bpy.props.StringProperty(name="Ceiling Texture")
+
 bpy.types.Object.brush_type = bpy.props.EnumProperty(
     items=[("BRUSH", "Brush", "is a brush"),
            ("SECTOR", "Sector", "is a sector"),
@@ -503,30 +520,46 @@ bpy.types.Object.brush_auto_texture = bpy.props.BoolProperty(
     description="Auto Texture on or off"
 )
 
-# ---------------------- UI helpers ----------------------
+# Brush Material
+bpy.types.Object.brush_material = bpy.props.StringProperty(
+    name="Brush Material",
+    description="Material used by Brush objects (copied into the built geometry)"
+)
+
+# Color Attribute UI
+bpy.types.Scene.color_picker = bpy.props.FloatVectorProperty(
+    name="Active",
+    subtype='COLOR',
+    default=(1.0, 1.0, 1.0),
+    min=0.0,
+    max=1.0
+)
+
+# =========================
+# UI helpers
+# =========================
 
 def draw_uv_box(parent, obj, prop_name, label, rot_prop_name, rot_label="Rotation"):
     box = parent.box()
     col = box.column(align=True)
     col.label(text=label)
-    # Scale row
     row = col.row(align=True)
     row.label(text="Scale")
     sub = row.row(align=True)
     sub.prop(obj, prop_name, index=0, text="U")
     sub.prop(obj, prop_name, index=1, text="V")
-    # Shift row
     row2 = col.row(align=True)
     row2.label(text="Shift")
     sub2 = row2.row(align=True)
     sub2.prop(obj, prop_name, index=2, text="U")
     sub2.prop(obj, prop_name, index=3, text="V")
-    # Rotation row
     row3 = col.row(align=True)
     row3.label(text=rot_label)
     row3.prop(obj, rot_prop_name, text="°")
 
-# ---------------------- UI ----------------------
+# =========================
+# UI Panels
+# =========================
 
 class LevelBuddyPanel(bpy.types.Panel):
     bl_label = "Level Buddy"
@@ -537,8 +570,8 @@ class LevelBuddyPanel(bpy.types.Panel):
         ob = context.active_object
         scn = bpy.context.scene
         layout = self.layout
+        mode = context.mode
 
-        # Map Settings
         col = layout.column(align=True)
         col.label(icon="WORLD", text="Map Settings")
         col.prop(scn, "map_precision")
@@ -551,24 +584,21 @@ class LevelBuddyPanel(bpy.types.Panel):
         col.separator()
         col.prop(scn, "color_attribute_name")
 
-        # Build
         col = layout.column(align=True)
         col.operator("scene.level_buddy_build_map", text="Build Map", icon="MOD_BUILD").bool_op = "UNION"
 
-        # Tools: New Sector / New Brush side-by-side
-        col = layout.column(align=True)
-        col.label(icon="SNAP_PEEL_OBJECT", text="Tools")
-        row = col.row(align=True)
-        op1 = row.operator("scene.level_buddy_new_geometry", text="New Sector", icon="MESH_PLANE")
-        op1.brush_type = 'SECTOR'
-        op2 = row.operator("scene.level_buddy_new_geometry", text="New Brush", icon="CUBE")
-        op2.brush_type = 'BRUSH'
+        if mode == 'OBJECT':
+            col = layout.column(align=True)
+            col.label(icon="SNAP_PEEL_OBJECT", text="Tools")
+            row = col.row(align=True)
+            op1 = row.operator("scene.level_buddy_new_geometry", text="New Sector", icon="MESH_PLANE")
+            op1.brush_type = 'SECTOR'
+            op2 = row.operator("scene.level_buddy_new_geometry", text="New Brush", icon="CUBE")
+            op2.brush_type = 'BRUSH'
 
-        # Brush Properties
         if ob is not None and len(bpy.context.selected_objects) > 0:
             col = layout.column(align=True)
             col.label(icon="MOD_ARRAY", text="Brush Properties")
-            # Read-only Typanzeige statt Auswahlbox
             typ = getattr(ob, "brush_type", "NONE")
             col.label(text=f"Type: {typ.title() if isinstance(typ, str) else str(typ)}")
             col.prop(ob, "csg_operation", text="CSG Op")
@@ -580,15 +610,17 @@ class LevelBuddyPanel(bpy.types.Panel):
                 draw_uv_box(col, ob, "wall_texture_scale_offset", "Wall UV", "wall_texture_rotation")
                 draw_uv_box(col, ob, "floor_texture_scale_offset", "Floor UV", "floor_texture_rotation")
 
-            if ob.brush_type == 'SECTOR' and ob.modifiers:
+            if getattr(ob, "brush_type", 'NONE') == 'SECTOR' and ob.modifiers:
                 col = layout.column(align=True)
-                col.label(icon="MOD_ARRAY", text="Sector Properties")
-                col.prop(ob, "ceiling_height")
-                col.prop(ob, "floor_height")
-                col = layout.column(align=True)
+                col.label(icon="MATERIAL", text="Sector Materials")
                 col.prop_search(ob, "ceiling_texture", bpy.data, "materials", icon="MATERIAL", text="Ceiling")
                 col.prop_search(ob, "wall_texture", bpy.data, "materials", icon="MATERIAL", text="Wall")
                 col.prop_search(ob, "floor_texture", bpy.data, "materials", icon="MATERIAL", text="Floor")
+
+            if getattr(ob, "brush_type", 'NONE') == 'BRUSH':
+                col = layout.column(align=True)
+                col.label(icon="MATERIAL", text="Brush Material")
+                col.prop_search(ob, "brush_material", bpy.data, "materials", icon="MATERIAL", text="Material")
 
 class VertexColorPanel(bpy.types.Panel):
     bl_idname = "OBJECT_PT_vertex_color_panel"
@@ -599,19 +631,249 @@ class VertexColorPanel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         scn = bpy.context.scene
-
-        # Active Color + Button in einer Zeile
         row = layout.row(align=True)
         row.prop(scn, "color_picker", text="")
-        btn = row.operator("object.set_vertex_color", text="Set Color")
-        btn.icon = 'COLOR' if hasattr(btn, "icon") else 0  # falls verfügbar
+        row.operator("object.set_vertex_color", text="Set Color")
 
-# ---------------------- operators ----------------------
+# =========================
+# SNAP TO GRID (world-space)
+# =========================
+
+vertex_positions = {}
+
+def _sgs_validate_context(context):
+    if not context.active_object:
+        return False, "No active object"
+    if context.active_object.type != 'MESH':
+        return False, "Active object is not a mesh"
+    if context.mode != 'EDIT_MESH':
+        return False, "Not in Edit Mode"
+    return True, ""
+
+def _snap_vec_world(wco, gx, gy, gz):
+    if gx > 0: wco.x = round(wco.x / gx) * gx
+    if gy > 0: wco.y = round(wco.y / gy) * gy
+    if gz > 0: wco.z = round(wco.z / gz) * gz
+    return wco
+
+def _sgs_snap_to_grid(obj, selected_verts, gx, gy, gz):
+    """Snap selected verts using WORLD coordinates, then write back to local."""
+    if not selected_verts:
+        return 0
+    mw = obj.matrix_world
+    imw = mw.inverted_safe()
+    snapped = 0
+    for v in selected_verts:
+        old_local = v.co.copy()
+        wco = mw @ old_local
+        wco = _snap_vec_world(wco, gx, gy, gz)
+        new_local = imw @ wco
+        if (new_local - old_local).length > 1e-6:
+            v.co = new_local
+            snapped += 1
+    return snapped
+
+def continuous_snap_handler(scene):
+    global vertex_positions
+    if bpy.context.mode != 'EDIT_MESH' or not scene.continuous_snap:
+        return
+
+    obj = bpy.context.active_object
+    if not obj or obj.type != 'MESH':
+        return
+
+    mesh = obj.data
+    bm = bmesh.from_edit_mesh(mesh)
+    selected_verts = [v for v in bm.verts if v.select]
+    if not selected_verts:
+        vertex_positions.clear()
+        return
+
+    # track movement in LOCAL (bmesh lives in local), but snap in WORLD
+    moved = False
+    for v in selected_verts:
+        key = (obj.name, v.index)
+        cur = v.co.copy()
+        if key in vertex_positions:
+            if (cur - vertex_positions[key]).length > 0.0001:
+                moved = True
+        vertex_positions[key] = cur
+
+    if moved:
+        _sgs_snap_to_grid(obj, selected_verts, scene.grid_size_x, scene.grid_size_y, scene.grid_size_z)
+        bmesh.update_edit_mesh(mesh)
+
+class ERF_SnapToGridPanel(bpy.types.Panel):
+    bl_label = "Snap to Grid"
+    bl_idname = "VIEW3D_PT_erf_snap_to_grid"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'Level Buddy'
+    bl_context = 'mesh_edit'  # only in Edit Mode
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+
+        box = layout.box()
+        box.label(text="Grid Settings:")
+        box.prop(scene, "grid_size_x", text="Grid Size X")
+        box.prop(scene, "grid_size_y", text="Grid Size Y")
+        box.prop(scene, "grid_size_z", text="Grid Size Z")
+
+        row = box.row(align=True)
+        row.operator("mesh.reset_grid_sizes", text="Reset to Default")
+
+        layout.separator()
+        layout.operator("mesh.snap_to_grid", text="Snap Selected to Grid")
+
+        layout.separator()
+        box = layout.box()
+        box.label(text="Continuous Snapping:")
+        row = box.row(align=True)
+        row.operator("mesh.toggle_continuous_snap", text="Toggle Continuous Snap")
+        icon = 'CHECKBOX_HLT' if scene.continuous_snap else 'CHECKBOX_DEHLT'
+        status_text = "ON" if scene.continuous_snap else "OFF"
+        row.label(text=f"Status: {status_text}", icon=icon)
+        if scene.continuous_snap:
+            box.label(text="⚠ World-space snapping active", icon='INFO')
+
+class ERF_SnapToGridOperator(bpy.types.Operator):
+    bl_idname = "mesh.snap_to_grid"
+    bl_label = "Snap to Grid"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        ok, _ = _sgs_validate_context(context)
+        return ok
+
+    def execute(self, context):
+        try:
+            ok, msg = _sgs_validate_context(context)
+            if not ok:
+                self.report({'ERROR'}, msg)
+                return {'CANCELLED'}
+
+            obj = context.active_object
+            mesh = obj.data
+            bm = bmesh.from_edit_mesh(mesh)
+            sel = [v for v in bm.verts if v.select]
+
+            if not sel:
+                self.report({'INFO'}, "No vertices selected. Please select vertices in Edit Mode.")
+                return {'CANCELLED'}
+
+            snapped_count = _sgs_snap_to_grid(
+                obj, sel,
+                context.scene.grid_size_x,
+                context.scene.grid_size_y,
+                context.scene.grid_size_z
+            )
+            bmesh.update_edit_mesh(mesh)
+
+            if snapped_count > 0:
+                self.report({'INFO'}, f"Snapped {snapped_count}/{len(sel)} vertices to world grid.")
+            else:
+                self.report({'INFO'}, "No vertices needed snapping (already on grid).")
+            return {'FINISHED'}
+        except Exception as e:
+            self.report({'ERROR'}, f"Error during grid snapping: {str(e)}")
+            return {'CANCELLED'}
+
+class ERF_ToggleContinuousSnapOperator(bpy.types.Operator):
+    bl_idname = "mesh.toggle_continuous_snap"
+    bl_label = "Toggle Continuous Snap"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        ok, _ = _sgs_validate_context(context)
+        return ok
+
+    def execute(self, context):
+        try:
+            context.scene.continuous_snap = not context.scene.continuous_snap
+            if context.scene.continuous_snap:
+                if continuous_snap_handler not in bpy.app.handlers.depsgraph_update_post:
+                    bpy.app.handlers.depsgraph_update_post.append(continuous_snap_handler)
+                self.report({'INFO'}, "Continuous snapping ON (world-space).")
+            else:
+                if continuous_snap_handler in bpy.app.handlers.depsgraph_update_post:
+                    bpy.app.handlers.depsgraph_update_post.remove(continuous_snap_handler)
+                self.report({'INFO'}, "Continuous snapping OFF.")
+            return {'FINISHED'}
+        except Exception as e:
+            self.report({'ERROR'}, f"Error toggling continuous snap: {str(e)}")
+            return {'CANCELLED'}
+
+class ERF_ResetGridSizesOperator(bpy.types.Operator):
+    bl_idname = "mesh.reset_grid_sizes"
+    bl_label = "Reset Grid Sizes"
+    bl_description = "Reset all grid sizes to default values"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        context.scene.grid_size_x = 1.0
+        context.scene.grid_size_y = 1.0
+        context.scene.grid_size_z = 1.0
+        self.report({'INFO'}, "Grid sizes reset to default (1.0)")
+        return {'FINISHED'}
+
+# =========================
+# Scene props for Grid Snapper
+# =========================
+
+def _register_grid_props():
+    bpy.types.Scene.grid_size_x = bpy.props.FloatProperty(
+        name="Grid Size X",
+        default=1.0,
+        min=0.01,
+        max=100.0,
+        precision=3,
+        description="Grid snapping size for the X-axis (world space)"
+    )
+    bpy.types.Scene.grid_size_y = bpy.props.FloatProperty(
+        name="Grid Size Y",
+        default=1.0,
+        min=0.01,
+        max=100.0,
+        precision=3,
+        description="Grid snapping size for the Y-axis (world space)"
+    )
+    bpy.types.Scene.grid_size_z = bpy.props.FloatProperty(
+        name="Grid Size Z",
+        default=1.0,
+        min=0.01,
+        max=100.0,
+        precision=3,
+        description="Grid snapping size for the Z-axis (world space)"
+    )
+    bpy.types.Scene.continuous_snap = bpy.props.BoolProperty(
+        name="Continuous Snap",
+        default=False,
+        description="Enable continuous world-space snapping of selected vertices while editing"
+    )
+
+def _unregister_grid_props():
+    for attr in ("grid_size_x", "grid_size_y", "grid_size_z", "continuous_snap"):
+        try:
+            delattr(bpy.types.Scene, attr)
+        except Exception:
+            pass
+
+# =========================
+# operators (rest)
+# =========================
 
 class LevelBuddyNewGeometry(bpy.types.Operator):
     bl_idname = "scene.level_buddy_new_geometry"
     bl_label = "Level New Geometry"
     brush_type: bpy.props.StringProperty(name="brush_type", default='NONE')
+
+    @classmethod
+    def poll(cls, context):
+        return context.mode == 'OBJECT'
 
     def add_vertex_color(self, ob):
         white = (1.0, 1.0, 1.0, 1.0)
@@ -619,7 +881,6 @@ class LevelBuddyNewGeometry(bpy.types.Operator):
         fill_color_layer_object_mode(ob, white)
 
     def _set_default_visibility(self, ob):
-        """Nur Viewport sichtbar & selektierbar. Alles andere aus."""
         try:
             ob.hide_select = False
         except Exception:
@@ -661,10 +922,8 @@ class LevelBuddyNewGeometry(bpy.types.Operator):
         ob.brush_auto_texture = True
         bpy.context.view_layer.objects.active = ob
 
-        # Sichtbarkeit Defaults
         self._set_default_visibility(ob)
 
-        # Defaults
         ob.ceiling_height = 4
         ob.floor_height = 0
         ob.ceiling_texture_scale_offset = (1.0, 1.0, 0.0, 0.0)
@@ -677,9 +936,7 @@ class LevelBuddyNewGeometry(bpy.types.Operator):
         ob.wall_texture = ""
         ob.floor_texture = ""
 
-        # Color-Layer sofort weiß
         self.add_vertex_color(ob)
-
         update_brush(ob)
         return {"FINISHED"}
 
@@ -703,10 +960,8 @@ class LevelBuddyBuildMap(bpy.types.Operator):
         level_map = create_new_boolean_object(scn, "LevelGeometry")
         level_map.data = bpy.data.meshes.new("LevelGeometryMesh")
 
-        # Ziel-Mesh: aktives Color-Attribut
         ensure_color_layer(level_map.data)
 
-        # Auto smooth (nur 3.x Felder)
         mesh = level_map.data
         if hasattr(mesh, "use_auto_smooth"):
             mesh.use_auto_smooth = scn.map_use_auto_smooth
@@ -742,16 +997,12 @@ class LevelBuddyBuildMap(bpy.types.Operator):
                 if brush.brush_auto_texture:
                     auto_texture(bool_obj, brush)
                 ensure_color_layer(bool_obj.data)
-
                 apply_csg(level_map, brush, bool_obj, reporter=self)
 
         remove_material(level_map)
         update_location_precision(level_map)
-
-        # Normalen nach innen
         set_normals_inward(level_map)
 
-        # Kontext zurücksetzen
         bpy.ops.object.select_all(action='DESELECT')
         if old_active:
             old_active.select_set(True)
@@ -762,7 +1013,6 @@ class LevelBuddyBuildMap(bpy.types.Operator):
             if obj:
                 obj.select_set(True)
 
-        # Müll entfernen
         for o in list(bpy.data.objects):
             if o.users == 0:
                 bpy.data.objects.remove(o)
@@ -786,16 +1036,9 @@ class SetVertexColorOperator(bpy.types.Operator):
         fill_color_layer_object_mode(obj, rgba)
         return {'FINISHED'}
 
-# UI Color Picker
-bpy.types.Scene.color_picker = bpy.props.FloatVectorProperty(
-    name="Active",
-    subtype='COLOR',
-    default=(1.0, 1.0, 1.0),
-    min=0.0,
-    max=1.0
-)
-
-# ---------------------- register ----------------------
+# =========================
+# register
+# =========================
 
 CLASSES = (
     LevelBuddyPanel,
@@ -803,18 +1046,28 @@ CLASSES = (
     LevelBuddyBuildMap,
     LevelBuddyNewGeometry,
     SetVertexColorOperator,
+
+    # Snap to Grid
+    ERF_SnapToGridPanel,
+    ERF_SnapToGridOperator,
+    ERF_ToggleContinuousSnapOperator,
+    ERF_ResetGridSizesOperator,
 )
 
 def register():
     for cls in CLASSES:
         bpy.utils.register_class(cls)
+    _register_grid_props()
 
 def unregister():
+    if continuous_snap_handler in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.remove(continuous_snap_handler)
     for cls in reversed(CLASSES):
         try:
             bpy.utils.unregister_class(cls)
         except Exception:
             pass
+    _unregister_grid_props()
 
 if __name__ == "__main__":
     register()
