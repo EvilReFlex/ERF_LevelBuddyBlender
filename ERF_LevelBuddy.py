@@ -572,6 +572,7 @@ class LevelBuddyPanel(bpy.types.Panel):
         layout = self.layout
         mode = context.mode
 
+        # Map Settings
         col = layout.column(align=True)
         col.label(icon="WORLD", text="Map Settings")
         col.prop(scn, "map_precision")
@@ -584,9 +585,11 @@ class LevelBuddyPanel(bpy.types.Panel):
         col.separator()
         col.prop(scn, "color_attribute_name")
 
+        # Build
         col = layout.column(align=True)
         col.operator("scene.level_buddy_build_map", text="Build Map", icon="MOD_BUILD").bool_op = "UNION"
 
+        # Tools (nur Object Mode)
         if mode == 'OBJECT':
             col = layout.column(align=True)
             col.label(icon="SNAP_PEEL_OBJECT", text="Tools")
@@ -596,6 +599,7 @@ class LevelBuddyPanel(bpy.types.Panel):
             op2 = row.operator("scene.level_buddy_new_geometry", text="New Brush", icon="CUBE")
             op2.brush_type = 'BRUSH'
 
+        # Brush Properties
         if ob is not None and len(bpy.context.selected_objects) > 0:
             col = layout.column(align=True)
             col.label(icon="MOD_ARRAY", text="Brush Properties")
@@ -610,17 +614,24 @@ class LevelBuddyPanel(bpy.types.Panel):
                 draw_uv_box(col, ob, "wall_texture_scale_offset", "Wall UV", "wall_texture_rotation")
                 draw_uv_box(col, ob, "floor_texture_scale_offset", "Floor UV", "floor_texture_rotation")
 
-            if getattr(ob, "brush_type", 'NONE') == 'SECTOR' and ob.modifiers:
-                col = layout.column(align=True)
-                col.label(icon="MATERIAL", text="Sector Materials")
-                col.prop_search(ob, "ceiling_texture", bpy.data, "materials", icon="MATERIAL", text="Ceiling")
-                col.prop_search(ob, "wall_texture", bpy.data, "materials", icon="MATERIAL", text="Wall")
-                col.prop_search(ob, "floor_texture", bpy.data, "materials", icon="MATERIAL", text="Floor")
+            # --- SECTOR: heights + materials
+            if getattr(ob, "brush_type", 'NONE') == 'SECTOR':
+                sec = layout.column(align=True)
+                sec.label(icon="MOD_SOLIDIFY", text="Sector Properties")
+                sec.prop(ob, "ceiling_height")
+                sec.prop(ob, "floor_height")
 
+                mat = layout.column(align=True)
+                mat.label(icon="MATERIAL", text="Sector Materials")
+                mat.prop_search(ob, "ceiling_texture", bpy.data, "materials", icon="MATERIAL", text="Ceiling")
+                mat.prop_search(ob, "wall_texture", bpy.data, "materials", icon="MATERIAL", text="Wall")
+                mat.prop_search(ob, "floor_texture", bpy.data, "materials", icon="MATERIAL", text="Floor")
+
+            # --- BRUSH: single material
             if getattr(ob, "brush_type", 'NONE') == 'BRUSH':
-                col = layout.column(align=True)
-                col.label(icon="MATERIAL", text="Brush Material")
-                col.prop_search(ob, "brush_material", bpy.data, "materials", icon="MATERIAL", text="Material")
+                br = layout.column(align=True)
+                br.label(icon="MATERIAL", text="Brush Material")
+                br.prop_search(ob, "brush_material", bpy.data, "materials", icon="MATERIAL", text="Material")
 
 class VertexColorPanel(bpy.types.Panel):
     bl_idname = "OBJECT_PT_vertex_color_panel"
@@ -689,7 +700,6 @@ def continuous_snap_handler(scene):
         vertex_positions.clear()
         return
 
-    # track movement in LOCAL (bmesh lives in local), but snap in WORLD
     moved = False
     for v in selected_verts:
         key = (obj.name, v.index)
@@ -819,48 +829,6 @@ class ERF_ResetGridSizesOperator(bpy.types.Operator):
         context.scene.grid_size_z = 1.0
         self.report({'INFO'}, "Grid sizes reset to default (1.0)")
         return {'FINISHED'}
-
-# =========================
-# Scene props for Grid Snapper
-# =========================
-
-def _register_grid_props():
-    bpy.types.Scene.grid_size_x = bpy.props.FloatProperty(
-        name="Grid Size X",
-        default=1.0,
-        min=0.01,
-        max=100.0,
-        precision=3,
-        description="Grid snapping size for the X-axis (world space)"
-    )
-    bpy.types.Scene.grid_size_y = bpy.props.FloatProperty(
-        name="Grid Size Y",
-        default=1.0,
-        min=0.01,
-        max=100.0,
-        precision=3,
-        description="Grid snapping size for the Y-axis (world space)"
-    )
-    bpy.types.Scene.grid_size_z = bpy.props.FloatProperty(
-        name="Grid Size Z",
-        default=1.0,
-        min=0.01,
-        max=100.0,
-        precision=3,
-        description="Grid snapping size for the Z-axis (world space)"
-    )
-    bpy.types.Scene.continuous_snap = bpy.props.BoolProperty(
-        name="Continuous Snap",
-        default=False,
-        description="Enable continuous world-space snapping of selected vertices while editing"
-    )
-
-def _unregister_grid_props():
-    for attr in ("grid_size_x", "grid_size_y", "grid_size_z", "continuous_snap"):
-        try:
-            delattr(bpy.types.Scene, attr)
-        except Exception:
-            pass
 
 # =========================
 # operators (rest)
@@ -1040,6 +1008,37 @@ class SetVertexColorOperator(bpy.types.Operator):
 # register
 # =========================
 
+def _register_grid_props():
+    bpy.types.Scene.grid_size_x = bpy.props.FloatProperty(
+        name="Grid Size X",
+        default=1.0,
+        min=0.01,
+        max=100.0,
+        precision=3,
+        description="Grid snapping size for the X-axis (world space)"
+    )
+    bpy.types.Scene.grid_size_y = bpy.props.FloatProperty(
+        name="Grid Size Y",
+        default=1.0,
+        min=0.01,
+        max=100.0,
+        precision=3,
+        description="Grid snapping size for the Y-axis (world space)"
+    )
+    bpy.types.Scene.grid_size_z = bpy.props.FloatProperty(
+        name="Grid Size Z",
+        default=1.0,
+        min=0.01,
+        max=100.0,
+        precision=3,
+        description="Grid snapping size for the Z-axis (world space)"
+    )
+    bpy.types.Scene.continuous_snap = bpy.props.BoolProperty(
+        name="Continuous Snap",
+        default=False,
+        description="Enable continuous world-space snapping of selected vertices while editing"
+    )
+
 CLASSES = (
     LevelBuddyPanel,
     VertexColorPanel,
@@ -1067,7 +1066,12 @@ def unregister():
             bpy.utils.unregister_class(cls)
         except Exception:
             pass
-    _unregister_grid_props()
+    # grid props
+    for attr in ("grid_size_x", "grid_size_y", "grid_size_z", "continuous_snap"):
+        try:
+            delattr(bpy.types.Scene, attr)
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     register()
